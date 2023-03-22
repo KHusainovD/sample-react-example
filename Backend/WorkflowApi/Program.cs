@@ -9,6 +9,10 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddControllersWithViews();
 builder.Services.AddSignalR();
+var provider = WorkflowInit.GetProvider(builder.Configuration.GetConnectionString("Default"));
+var runtime = WorkflowInit.GetRuntime(provider);
+builder.Services.AddSingleton(provider);
+builder.Services.AddSingleton(runtime);
 
 const string rule = "MyCorsRule";
 builder.Services.Configure<WorkflowApiConfiguration>(builder.Configuration);
@@ -32,8 +36,6 @@ var app = builder.Build();
 var connectionString = app.Configuration.GetConnectionString("Default");
 if (connectionString is null) throw new NullReferenceException("Default connection string is not set");
 await DatabaseUpgrade.WaitForUpgrade(connectionString);
-
-WorkflowLib.WorkflowInit.ConnectionString = connectionString;
 
 if (!string.IsNullOrEmpty(apiConfiguration?.LicenseKey))
 {
@@ -64,6 +66,7 @@ app.MapHub<ProcessConsoleHub>("api/workflow/processConsole");
 
 var processConsoleContext = app.Services.GetService<IHubContext<ProcessConsoleHub>>();
 
-await WorkflowInit.StartAsync(processConsoleContext);
+runtime.WithActionProvider(new ActionProvider(processConsoleContext));
+await runtime.StartAsync();
 
 app.Run();

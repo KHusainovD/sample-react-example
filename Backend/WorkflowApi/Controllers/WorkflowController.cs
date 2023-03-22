@@ -1,18 +1,25 @@
 using System.Globalization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using OptimaJet.Workflow.Core.Entities;
 using OptimaJet.Workflow.Core.Model;
 using OptimaJet.Workflow.Core.Persistence;
 using OptimaJet.Workflow.Core.Runtime;
+using OptimaJet.Workflow.DbPersistence;
 using WorkflowApi.Models;
-using WorkflowLib;
 
 namespace WorkflowApi.Controllers;
 
 [Route("api/workflow")]
 public class WorkflowController : ControllerBase
 {
+    private MSSQLProvider _provider;
+    private WorkflowRuntime _runtime;
+    public WorkflowController(MSSQLProvider provider, WorkflowRuntime runtime)
+    {
+        _provider = provider;
+        _runtime = runtime;
+    }
+    
     /// <summary>
     /// Returns process schemes from the database
     /// </summary>
@@ -22,7 +29,7 @@ public class WorkflowController : ControllerBase
     public async Task<IActionResult> Schemes()
     {
         // getting a connection to the database
-        await using var connection = WorkflowInit.Provider.OpenConnection();
+        await using var connection = _provider.OpenConnection();
         // creating parameters for the "ORDER BY" clause
         var orderParameters = new List<(string parameterName, SortDirection sortDirection)>
         {
@@ -31,7 +38,7 @@ public class WorkflowController : ControllerBase
         // creating parameters for the "LIMIT" and "OFFSET" clauses
         var paging = Paging.Create(0, 200);
         // getting schemes from the database
-        var list = await WorkflowInit.Provider.WorkflowScheme
+        var list = await _provider.WorkflowScheme
             .SelectAllWorkflowSchemesWithPagingAsync(connection, orderParameters, paging);
 
         // converting schemes to DTOs
@@ -52,7 +59,7 @@ public class WorkflowController : ControllerBase
     public async Task<IActionResult> Instances()
     {
         // getting a connection to the database
-        await using var connection = WorkflowInit.Provider.OpenConnection();
+        await using var connection = _provider.OpenConnection();
         // creating parameters for the "ORDER BY" clause
         var orderParameters = new List<(string parameterName, SortDirection sortDirection)>
         {
@@ -61,14 +68,14 @@ public class WorkflowController : ControllerBase
         // creating parameters for the "LIMIT" and "OFFSET" clauses
         var paging = Paging.Create(0, 200);
         // getting process instances from the database
-        var processes = await WorkflowInit.Provider.WorkflowProcessInstance
+        var processes = await _provider.WorkflowProcessInstance
             .SelectAllWithPagingAsync(connection, orderParameters, paging);
 
         // converting process instances to DTOs
         var result = processes.Select(async p =>
             {
                 // getting process scheme from another table to get SchemeCode
-                var schemeEntity = await WorkflowInit.Provider.WorkflowProcessScheme.SelectByKeyAsync(connection, p.SchemeId!);
+                var schemeEntity = await _provider.WorkflowProcessScheme.SelectByKeyAsync(connection, p.SchemeId!);
                 // converting process instances to DTO
                 return ConvertToWorkflowProcessDto(p, schemeEntity.SchemeCode);
             })
@@ -94,7 +101,7 @@ public class WorkflowController : ControllerBase
 
         if (dto.ProcessParameters.Count > 0)
         {
-            var processScheme = await WorkflowInit.Runtime.Builder.GetProcessSchemeAsync(schemeCode);
+            var processScheme = await _runtime.Builder.GetProcessSchemeAsync(schemeCode);
 
             foreach (var processParameter in dto.ProcessParameters)
             {
@@ -111,12 +118,12 @@ public class WorkflowController : ControllerBase
             }
         }
 
-        await WorkflowInit.Runtime.CreateInstanceAsync(createInstanceParams);
+        await _runtime.CreateInstanceAsync(createInstanceParams);
 
         // getting a connection to the database
-        await using var connection = WorkflowInit.Provider.OpenConnection();
+        await using var connection = _provider.OpenConnection();
         // getting process instance from the database
-        var processInstanceEntity = await WorkflowInit.Provider.WorkflowProcessInstance
+        var processInstanceEntity = await _provider.WorkflowProcessInstance
             .SelectByKeyAsync(connection, processId);
 
         // converting process instances to DTO
@@ -135,9 +142,9 @@ public class WorkflowController : ControllerBase
     public async Task<IActionResult> Commands(Guid processId, string identityId)
     {
         // getting a process instance and its parameters
-        var process = await WorkflowInit.Runtime.GetProcessInstanceAndFillProcessParametersAsync(processId);
+        var process = await _runtime.GetProcessInstanceAndFillProcessParametersAsync(processId);
         // getting available commands for a process instance
-        var commands = await WorkflowInit.Runtime.GetAvailableCommandsAsync(processId, identityId);
+        var commands = await _runtime.GetAvailableCommandsAsync(processId, identityId);
         // convert process instance commands to a list of strings
         // creating the resulting DTO
         var dto = new WorkflowProcessCommandsDto
@@ -176,14 +183,14 @@ public class WorkflowController : ControllerBase
         [FromBody] ProcessParametersDto dto)
     {
         // getting available commands for a process instance
-        var commands = await WorkflowInit.Runtime.GetAvailableCommandsAsync(processId, identityId);
+        var commands = await _runtime.GetAvailableCommandsAsync(processId, identityId);
         // search for the necessary command
         var workflowCommand = commands?.First(c => c.CommandName == command)
                               ?? throw new ArgumentException($"Command {command} not found");
         
         if (dto.ProcessParameters.Count > 0)
         {
-            var processScheme = await WorkflowInit.Runtime.GetProcessSchemeAsync(processId);
+            var processScheme = await _runtime.GetProcessSchemeAsync(processId);
 
             foreach (var processParameter in dto.ProcessParameters)
             {
@@ -194,7 +201,7 @@ public class WorkflowController : ControllerBase
             }
         }
         // executing the command
-        var result = await WorkflowInit.Runtime.ExecuteCommandAsync(workflowCommand, identityId, null);
+        var result = await _runtime.ExecuteCommandAsync(workflowCommand, identityId, null);
         return Ok(result.WasExecuted);
     }
 
@@ -210,7 +217,7 @@ public class WorkflowController : ControllerBase
     {
         var result = dto.ProcessParameters.Count > 0;
 
-        var processInstance = await WorkflowInit.Runtime.GetProcessInstanceAndFillProcessParametersAsync(processId);
+        var processInstance = await _runtime.GetProcessInstanceAndFillProcessParametersAsync(processId);
 
         foreach (var processParameter in dto.ProcessParameters)
         {
@@ -228,7 +235,7 @@ public class WorkflowController : ControllerBase
             processInstance.RemoveParameter(processParameter.Name);
         }
 
-        await processInstance.SaveAsync(WorkflowInit.Runtime);
+        await processInstance.SaveAsync(_runtime);
         return Ok(result);
     }
 
@@ -241,7 +248,7 @@ public class WorkflowController : ControllerBase
     [Route("schemeParameters/{schemeCode}")]
     public async Task<IActionResult> SchemeParameters(string schemeCode)
     {
-        var processScheme = await WorkflowInit.Runtime.Builder.GetProcessSchemeAsync(schemeCode);
+        var processScheme = await _runtime.Builder.GetProcessSchemeAsync(schemeCode);
 
         var processParameterDtos = processScheme.Parameters
             .Where(p => p.Purpose != ParameterPurpose.System)
@@ -262,7 +269,7 @@ public class WorkflowController : ControllerBase
     [Route("schemeParameters/{processId:guid}")]
     public async Task<IActionResult> ProcessParameters(Guid processId)
     {
-        var processInstance = await WorkflowInit.Runtime.GetProcessInstanceAndFillProcessParametersAsync(processId);
+        var processInstance = await _runtime.GetProcessInstanceAndFillProcessParametersAsync(processId);
 
         var processParameterDtos = processInstance.ProcessParameters
             .Where(p => p.Purpose != ParameterPurpose.System)
