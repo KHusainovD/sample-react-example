@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WorkflowLib", "WorkflowLib\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WorkflowApi", "WorkflowApi\WorkflowApi.csproj", "{80F25F68-D536-410B-A8C9-83124357DCBD}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WorkflowTest", "WorkflowTest\WorkflowTest.csproj", "{63286CDF-9EC2-4A43-B9D1-B2D068CBA9A8}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -24,5 +26,9 @@ Global
 		{80F25F68-D536-410B-A8C9-83124357DCBD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{80F25F68-D536-410B-A8C9-83124357DCBD}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{80F25F68-D536-410B-A8C9-83124357DCBD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{63286CDF-9EC2-4A43-B9D1-B2D068CBA9A8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{63286CDF-9EC2-4A43-B9D1-B2D068CBA9A8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{63286CDF-9EC2-4A43-B9D1-B2D068CBA9A8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{63286CDF-9EC2-4A43-B9D1-B2D068CBA9A8}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

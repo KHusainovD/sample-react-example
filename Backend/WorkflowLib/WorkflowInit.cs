@@ -12,26 +12,14 @@ namespace WorkflowLib;
 
 public static class WorkflowInit
 {
-    private static readonly Lazy<WorkflowRuntime> LazyRuntime = new(InitWorkflowRuntime);
-    private static readonly Lazy<MSSQLProvider> LazyProvider = new(InitMssqlProvider);
-
-    public static string ConnectionString { get; set; } = "";
-    public static WorkflowRuntime Runtime => LazyRuntime.Value;
-    public static MSSQLProvider Provider => LazyProvider.Value;
-
-    private static MSSQLProvider InitMssqlProvider()
-    {
-        return new MSSQLProvider(ConnectionString);
-    }
-
-    private static WorkflowRuntime InitWorkflowRuntime()
+    public static WorkflowRuntime GetRuntime(MSSQLProvider provider)
     {
         //WorkflowRuntime.RegisterLicense(Secrets.LicenseKey);
 
         var builder = new WorkflowBuilder<XElement>(
-            Provider,
+            provider,
             new XmlWorkflowParser(),
-            Provider
+            provider
         ).WithDefaultCache();
 
         // we need BasicPlugin to send email
@@ -47,12 +35,10 @@ public static class WorkflowInit
         var runtime = new WorkflowRuntime()
             .WithPlugin(basicPlugin)
             .WithBuilder(builder)
-            .WithPersistenceProvider(Provider)
+            .WithPersistenceProvider(provider)
             .EnableCodeActions()
             .SwitchAutoUpdateSchemeBeforeGetAvailableCommandsOn()
-            // add custom activity
-            .WithCustomActivities(new List<ActivityBase> {new WeatherActivity()})
-            // add custom rule provider
+            .WithCustomActivities(new List<ActivityBase> { new WeatherActivity() })
             .WithRuleProvider(new SimpleRuleProvider())
             .WithDesignerParameterFormatProvider(new DesignerParameterFormatProvider())
             .AsSingleServer();
@@ -64,14 +50,9 @@ public static class WorkflowInit
         return runtime;
     }
 
-    public static async Task StartAsync(IHubContext<ProcessConsoleHub> processConsoleHub)
+    public static MSSQLProvider GetProvider(string connectionString)
     {
-        Runtime.WithActionProvider(new ActionProvider(processConsoleHub));
-        await Runtime.StartAsync();
-    }
-
-    public static void InjectServices()
-    {
-        throw new NotImplementedException();
+        var provider = new MSSQLProvider(connectionString);
+        return provider;
     }
 }
